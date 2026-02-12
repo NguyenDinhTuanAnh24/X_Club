@@ -6,12 +6,22 @@ async function main() {
   console.log('Starting seeding...')
 
   // 1. Membership Tiers
-  const standardTier = await prisma.membershipTier.upsert({
-    where: { name: 'Standard' },
+  const bronzeTier = await prisma.membershipTier.upsert({
+    where: { name: 'Bronze' },
     update: {},
     create: {
-      name: 'Standard',
-      price: 1000000,
+      name: 'Bronze',
+      price: 2000000,
+      durationDays: 30,
+    },
+  })
+
+  const silverTier = await prisma.membershipTier.upsert({
+    where: { name: 'Silver' },
+    update: {},
+    create: {
+      name: 'Silver',
+      price: 4000000,
       durationDays: 30,
     },
   })
@@ -21,11 +31,21 @@ async function main() {
     update: {},
     create: {
       name: 'Gold',
-      price: 5000000,
+      price: 8000000,
       durationDays: 30,
     },
   })
-  console.log('Membership Tiers seeded.')
+
+  const platinumTier = await prisma.membershipTier.upsert({
+    where: { name: 'Platinum' },
+    update: {},
+    create: {
+      name: 'Platinum',
+      price: 15000000,
+      durationDays: 30,
+    },
+  })
+  console.log('Membership Tiers seeded (Bronze, Silver, Gold, Platinum).')
 
   // 2. Users
   // Create Super Admin (Unique)
@@ -77,7 +97,7 @@ async function main() {
     update: {},
     create: {
       userId: mainUser.id,
-      tierId: standardTier.id,
+      tierId: bronzeTier.id,
       startDate: new Date(),
       endDate: new Date(new Date().setDate(new Date().getDate() + 30)),
       status: 'ACTIVE'

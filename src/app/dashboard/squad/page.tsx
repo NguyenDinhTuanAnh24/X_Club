@@ -60,6 +60,17 @@ export default function SquadPage() {
                             <h2 className="text-2xl font-bold">Nhóm Alpha #03</h2>
                         </div>
                         <p className="text-blue-100 text-sm font-medium">Được thành lập: 15/11/2025 • Mentor: Trần Thị B</p>
+
+                        {/* Group Leader Action */}
+                        <div className="mt-4">
+                            <Button
+                                onClick={() => window.location.href = '/dashboard/squad/create-meeting'}
+                                className="bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm text-xs font-bold shadow-sm"
+                                size="sm"
+                            >
+                                + Tạo cuộc họp
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex gap-8 text-center bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">

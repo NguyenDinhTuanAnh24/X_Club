@@ -20,6 +20,11 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
 
+        // Clear previous session data
+        if (typeof window !== 'undefined') {
+            localStorage.clear();
+        }
+
         try {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
@@ -41,9 +46,26 @@ export default function LoginPage() {
                 localStorage.setItem('xclub_user_email', data.user.email);
                 localStorage.setItem('xclub_user_name', data.user.fullName);
                 localStorage.setItem('xclub_user_tier', data.user.membership?.tier || 'BRONZE');
+                localStorage.setItem('xclub_user_role', data.user.role);
             }
 
-            window.location.href = '/dashboard';
+            // Route based on Role
+            switch (data.user.role) {
+                case 'SUPER_ADMIN':
+                    window.location.href = '/dashboard/admin/overview';
+                    break;
+                case 'INSTRUCTOR':
+                    window.location.href = '/dashboard/mentor';
+                    break;
+                case 'AFFILIATE':
+                    window.location.href = '/dashboard/affiliate';
+                    break;
+                case 'GROUP_LEADER':
+                    window.location.href = '/dashboard'; // Or /dashboard/squad?
+                    break;
+                default:
+                    window.location.href = '/dashboard';
+            }
         } catch (err) {
             setError('Có lỗi xảy ra. Vui lòng thử lại.');
             setLoading(false);

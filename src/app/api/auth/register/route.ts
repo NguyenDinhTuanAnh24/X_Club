@@ -5,11 +5,15 @@ import prisma from '@/lib/prisma';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { email, password, fullName, tier } = body;
+        const { email, password, fullName, tier, role } = body;
 
         if (!email || !password || !fullName) {
             return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
         }
+
+        // Validate Role
+        const ALLOWED_ROLES = ['STUDENT', 'INSTRUCTOR']; // Restricted to Student and Instructor
+        const userRole = (role && ALLOWED_ROLES.includes(role)) ? role : 'STUDENT';
 
         // Check if user already exists
         const existingUser = await prisma.user.findUnique({
@@ -20,9 +24,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
         }
 
-        // Map tier from frontend to database Tier Name (Standard/Gold)
-        // Frontend sends 'tier-2' for Gold, anything else or default is Standard
-        const tierName = (tier === 'tier-2' || tier === 'Gold' || tier === 'GOLD') ? 'Gold' : 'Standard';
+        // Map tier from frontend to database Tier Name
+        // Frontend sends 'bronze', 'silver', 'gold', 'platinum'
+        const tierMap: Record<string, string> = {
+            'bronze': 'Bronze',
+            'silver': 'Silver',
+            'gold': 'Gold',
+            'platinum': 'Platinum'
+        };
+
+        const tierName = tierMap[tier.toLowerCase()] || 'Bronze';
 
         // Find Membership Tier in DB
         const selectedTier = await prisma.membershipTier.findUnique({
@@ -41,7 +52,7 @@ export async function POST(request: NextRequest) {
                 email,
                 passwordHash: password, // In production: await bcrypt.hash(password, 10)
                 fullName,
-                role: 'MEMBER',
+                role: userRole,
                 status: 'ACTIVE'
             }
         });
@@ -69,8 +80,8 @@ export async function POST(request: NextRequest) {
             user: {
                 ...userWithoutPassword,
                 membership: {
-                    tier: subscription.tier.name, // Return tier name for frontend compatibility
-                    ...subscription
+                    ...subscription,
+                    tier: subscription.tier.name
                 }
             },
             message: 'Registration successful'

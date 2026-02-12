@@ -34,6 +34,8 @@ interface NavItem {
 
 const ALL_ROLES = ['SUPER_ADMIN', 'SUPPORT', 'INSTRUCTOR', 'CONTENT_EDITOR', 'AFFILIATE', 'GROUP_LEADER', 'STUDENT'];
 
+const ALL_ROLES_EXCEPT_ADMIN = ['SUPPORT', 'INSTRUCTOR', 'CONTENT_EDITOR', 'AFFILIATE', 'GROUP_LEADER', 'STUDENT'];
+
 const navigation: NavItem[] = [
     {
         name: "Tổng quan",
@@ -75,7 +77,7 @@ const navigation: NavItem[] = [
     {
         name: "Học tập & Phát triển",
         icon: BookOpen,
-        allowedRoles: ['STUDENT', 'INSTRUCTOR', 'GROUP_LEADER', 'SUPER_ADMIN', 'CONTENT_EDITOR'],
+        allowedRoles: ['STUDENT', 'INSTRUCTOR', 'GROUP_LEADER', 'CONTENT_EDITOR'],
         children: [
             { name: "Đào tạo & Đánh giá", href: "/dashboard/learning", icon: GraduationCap },
             { name: "Bài tập", href: "/dashboard/assignments", icon: FileText },
@@ -86,7 +88,7 @@ const navigation: NavItem[] = [
     {
         name: "Cộng đồng",
         icon: Users2,
-        allowedRoles: ['STUDENT', 'INSTRUCTOR', 'GROUP_LEADER', 'SUPER_ADMIN'],
+        allowedRoles: ['STUDENT', 'INSTRUCTOR', 'GROUP_LEADER'],
         children: [
             { name: "Squad của tôi", href: "/dashboard/squad", icon: Users },
             { name: "Tin nhắn", href: "/dashboard/messages", icon: MessageSquare },
@@ -96,11 +98,11 @@ const navigation: NavItem[] = [
     {
         name: "Mentor & Teaching",
         icon: ClipboardCheck,
-        allowedRoles: ['INSTRUCTOR', 'SUPER_ADMIN', 'CONTENT_EDITOR'],
+        allowedRoles: ['INSTRUCTOR', 'CONTENT_EDITOR'],
         children: [
-            { name: "Quản lý khóa học", href: "/dashboard/mentor/courses", icon: BookOpen, allowedRoles: ['INSTRUCTOR', 'SUPER_ADMIN'] },
-            { name: "Chấm bài", href: "/dashboard/mentor", icon: ClipboardCheck, allowedRoles: ['INSTRUCTOR', 'SUPER_ADMIN'] },
-            { name: "Upload Video", href: "/dashboard/mentor/upload", icon: FileText, allowedRoles: ['INSTRUCTOR', 'CONTENT_EDITOR', 'SUPER_ADMIN'] }
+            { name: "Quản lý khóa học", href: "/dashboard/mentor/courses", icon: BookOpen, allowedRoles: ['INSTRUCTOR'] },
+            { name: "Chấm bài", href: "/dashboard/mentor/assignments", icon: ClipboardCheck, allowedRoles: ['INSTRUCTOR'] },
+            { name: "Upload Video", href: "/dashboard/mentor/upload-video", icon: FileText, allowedRoles: ['INSTRUCTOR', 'CONTENT_EDITOR'] }
         ]
     }
 ];
@@ -118,13 +120,46 @@ export function AppSidebar() {
 
     useEffect(() => {
         // Hydrate role
-        const role = localStorage.getItem('xclub_user_role') || 'STUDENT';
-        setUserRole(role);
+        const storedRole = localStorage.getItem('xclub_user_role') || 'STUDENT';
+        const storedId = localStorage.getItem('xclub_user_id');
+        setUserRole(storedRole);
+
+        // Sync Role with Server (Handling F5 updates)
+        if (storedId) {
+            fetch('/api/auth/me', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: storedId })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.user && data.user.role !== storedRole) {
+                        console.log("Role synced from server:", storedRole, "->", data.user.role);
+
+                        // Update Local Storage
+                        localStorage.setItem('xclub_user_role', data.user.role);
+                        localStorage.setItem('xclub_user_name', data.user.fullName);
+                        if (data.user.membership?.tier) {
+                            localStorage.setItem('xclub_user_tier', data.user.membership.tier);
+                        }
+
+                        // Update State
+                        setUserRole(data.user.role);
+
+                        // Broadcast event
+                        window.dispatchEvent(new Event('roleChanged'));
+
+                        // Force reload to apply changes to page content (e.g. redirect rules)
+                        window.location.reload();
+                    }
+                })
+                .catch(err => console.error("Failed to sync role", err));
+        }
 
         // Auto open groups logic
         const newOpenGroups: Record<string, boolean> = {};
         navigation.forEach(group => {
-            if (group.children && hasPermission(group.allowedRoles, role)) {
+            if (group.children && hasPermission(group.allowedRoles, storedRole)) { // Use storedRole here initially
                 if (group.children.some(child => pathname === child.href)) {
                     newOpenGroups[group.name] = true;
                 }
@@ -150,11 +185,22 @@ export function AppSidebar() {
         setOpenGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
     };
 
+    const getHomeLink = (role: string) => {
+        switch (role) {
+            case 'SUPER_ADMIN': return '/dashboard/admin/overview';
+            case 'INSTRUCTOR': return '/dashboard/mentor';
+            case 'AFFILIATE': return '/dashboard/affiliate';
+            default: return '/dashboard';
+        }
+    };
+
+    const homeHref = getHomeLink(userRole);
+
     return (
         <aside className="hidden lg:flex w-64 bg-white border-r-2 border-slate-200 flex-col h-screen fixed inset-y-0 left-0 z-50 shadow-sm overflow-hidden">
             {/* Logo Header */}
             <div className="h-16 flex items-center px-6 border-b-2 border-slate-200 bg-white z-10 sticky top-0">
-                <Link href="/dashboard" className="flex items-center gap-2 group">
+                <Link href={homeHref} className="flex items-center gap-2 group">
                     <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white font-black shadow-md transition-transform group-hover:scale-105">
                         X
                     </div>
@@ -226,11 +272,12 @@ export function AppSidebar() {
                     }
 
                     // Render Single Item
-                    const isActive = pathname === item.href;
+                    const realHref = item.href === '/dashboard' ? homeHref : item.href!;
+                    const isActive = pathname === realHref;
                     return (
                         <Link
                             key={item.name}
-                            href={item.href!}
+                            href={realHref}
                             className={clsx(
                                 "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
                                 isActive

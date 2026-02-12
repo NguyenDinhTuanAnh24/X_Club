@@ -1,91 +1,60 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET: Lấy danh sách lịch trình
-export async function GET(request: NextRequest) {
+export async function POST(req: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-        const upcoming = searchParams.get('upcoming') === 'true';
+        const body = await req.json();
+        const { title, description, startTime, endTime, location, groupId, type, email } = body;
 
-        const where: Record<string, unknown> = {};
-
-        if (userId) {
-            where.createdById = userId;
-        }
-
-        if (upcoming) {
-            where.startTime = {
-                gte: new Date()
-            };
-        }
-
-        const schedules = await prisma.schedule.findMany({
-            where,
-            include: {
-                createdBy: {
-                    select: { id: true, fullName: true, avatarUrl: true }
-                }
-            },
-            orderBy: {
-                startTime: 'asc'
-            }
-        });
-
-        return NextResponse.json({
-            success: true,
-            schedules
-        });
-    } catch (error) {
-        console.error('Error fetching schedules:', error);
-        return NextResponse.json(
-            { success: false, error: 'Không thể lấy danh sách lịch trình' },
-            { status: 500 }
-        );
-    }
-}
-
-// POST: Tạo lịch trình mới
-export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { title, description, type, startTime, endTime, location, createdById, groupId, isRecurring } = body;
-
-        if (!title || !startTime || !endTime || !createdById) {
+        // Basic validation
+        if (!title || !startTime || !endTime) {
             return NextResponse.json(
-                { success: false, error: 'Thiếu thông tin bắt buộc' },
+                { error: 'Missing required fields' },
                 { status: 400 }
+            );
+        }
+
+        // Find the creator
+        let creator;
+        if (email) {
+            creator = await prisma.user.findUnique({
+                where: { email }
+            });
+        }
+
+        // Fallback or validation
+        if (!creator) {
+            // Fallback for testing if no email passed or user not found
+            creator = await prisma.user.findFirst({
+                where: { role: 'GROUP_LEADER' }
+            });
+        }
+
+        if (!creator) {
+            return NextResponse.json(
+                { error: 'User not found or unauthorized' },
+                { status: 403 }
             );
         }
 
         const schedule = await prisma.schedule.create({
             data: {
                 title,
-                description: description || null,
-                type: type || 'ONLINE_MEETING',
+                description,
                 startTime: new Date(startTime),
                 endTime: new Date(endTime),
-                location: location || null,
-                createdById,
-                groupId: groupId || null,
-                isRecurring: isRecurring || false
-            },
-            include: {
-                createdBy: {
-                    select: { id: true, fullName: true, avatarUrl: true }
-                }
+                location,
+                type: type || 'ONLINE_MEETING',
+                groupId, // Optional: Link to specific group if provided
+                createdById: creator.id
             }
         });
 
-        return NextResponse.json({
-            success: true,
-            message: 'Tạo lịch trình thành công',
-            schedule
-        }, { status: 201 });
+        return NextResponse.json(schedule, { status: 201 });
     } catch (error) {
         console.error('Error creating schedule:', error);
         return NextResponse.json(
-            { success: false, error: 'Không thể tạo lịch trình' },
+            { error: 'Internal Server Error' },
             { status: 500 }
         );
     }

@@ -16,10 +16,14 @@ import {
     PlayCircle,
     AlertTriangle,
     AlignLeft,
-    HelpCircle
+    HelpCircle,
+    Edit,
+    Save,
+    X as XIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import CountdownTimer from '@/components/ui/CountdownTimer';
 
 export default function MeetingSchedulePage() {
     // State
@@ -32,8 +36,23 @@ export default function MeetingSchedulePage() {
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [mounted, setMounted] = useState(false);
 
+    // Meeting Link State
+    const [meetingLink, setMeetingLink] = useState("https://meet.google.com/abc-defg-hijkl");
+    const [isEditingLink, setIsEditingLink] = useState(false);
+    const [tempLink, setTempLink] = useState("");
+    const [userRole, setUserRole] = useState("STUDENT");
+
     useEffect(() => {
         setMounted(true);
+        // Hydrate role
+        const role = localStorage.getItem('xclub_user_role') || 'STUDENT';
+        setUserRole(role);
+
+        // Hydrate meeting link
+        const savedLink = localStorage.getItem('xclub_meeting_link');
+        if (savedLink) {
+            setMeetingLink(savedLink);
+        }
     }, []);
 
     // Mock Data
@@ -78,17 +97,17 @@ export default function MeetingSchedulePage() {
             setShowWarningModal(true);
             return;
         }
-        window.open("https://meet.google.com/abc-defg-hijkl", "_blank");
+        window.open(meetingLink, "_blank");
     };
 
     const confirmJoin = () => {
         setShowWarningModal(false);
-        window.open("https://meet.google.com/abc-defg-hijkl", "_blank");
+        window.open(meetingLink, "_blank");
     };
 
 
     const handleCopy = () => {
-        navigator.clipboard.writeText("https://meet.google.com/abc-defg-hijkl");
+        navigator.clipboard.writeText(meetingLink);
         alert("Đã sao chép đường dẫn buổi họp!");
     };
 
@@ -112,15 +131,12 @@ export default function MeetingSchedulePage() {
                     </div>
 
                     <h2 className="text-4xl md:text-5xl font-black mb-2">Buổi họp #33</h2>
-                    <p className="text-blue-100 font-medium text-lg mb-10">Thứ Năm, 15/02/2026 • 20:30 - 22:00</p>
+                    <p className="text-blue-100 font-medium text-lg mb-10">Chủ Nhật, 15/02/2026 • 20:30 - 22:00</p>
 
                     {/* Countdown Timer */}
                     <div className="mb-4">
-                        <span className="text-6xl md:text-8xl font-black tracking-tight tabular-nums drop-shadow-lg">
-                            02:15:43
-                        </span>
+                        <CountdownTimer targetDate={new Date('2026-02-15T20:30:00')} />
                     </div>
-                    <p className="text-blue-200 text-sm font-medium">Còn 2 giờ 15 phút để bắt đầu</p>
                 </div>
 
                 {/* Bottom Stats Grid */}
@@ -227,27 +243,71 @@ export default function MeetingSchedulePage() {
 
                     {/* Link Box */}
                     <div className="border-2 border-dashed border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 bg-blue-50/30 mb-6">
-                        <code className="text-blue-600 font-mono text-sm bg-white px-3 py-1 rounded border border-blue-100 w-full md:w-auto text-center md:text-left truncate">
-                            https://meet.google.com/abc-defg-hijkl
-                        </code>
-                        <div className="flex gap-3 w-full md:w-auto">
-                            <Button
-                                onClick={handleJoin}
-                                variant="brand"
-                                className="whitespace-nowrap flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                <Video className="w-4 h-4 mr-2" />
-                                Tham gia
-                            </Button>
-                            <Button
-                                onClick={handleCopy}
-                                variant="secondary"
-                                className="whitespace-nowrap flex-1 md:flex-none bg-white border-slate-200"
-                            >
-                                <Copy className="w-4 h-4 mr-2" />
-                                Sao chép
-                            </Button>
-                        </div>
+                        {isEditingLink ? (
+                            <div className="flex-1 w-full flex gap-2">
+                                <Input
+                                    value={tempLink}
+                                    onChange={(e) => setTempLink(e.target.value)}
+                                    placeholder="https://meet.google.com/..."
+                                    className="bg-white"
+                                />
+                                <Button
+                                    onClick={() => {
+                                        setMeetingLink(tempLink);
+                                        localStorage.setItem('xclub_meeting_link', tempLink);
+                                        setIsEditingLink(false);
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                    <Save className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    onClick={() => setIsEditingLink(false)}
+                                    variant="secondary"
+                                    className="bg-white border-slate-200"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2 max-w-full overflow-hidden">
+                                    <code className="text-blue-600 font-mono text-sm bg-white px-3 py-1 rounded border border-blue-100 truncate">
+                                        {meetingLink}
+                                    </code>
+                                    {(userRole === 'INSTRUCTOR' || userRole === 'GROUP_LEADER' || userRole === 'SUPER_ADMIN') && (
+                                        <button
+                                            onClick={() => {
+                                                setTempLink(meetingLink);
+                                                setIsEditingLink(true);
+                                            }}
+                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Chỉnh sửa link họp"
+                                        >
+                                            <Edit className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex gap-3 w-full md:w-auto">
+                                    <Button
+                                        onClick={handleJoin}
+                                        variant="brand"
+                                        className="whitespace-nowrap flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        <Video className="w-4 h-4 mr-2" />
+                                        Tham gia
+                                    </Button>
+                                    <Button
+                                        onClick={handleCopy}
+                                        variant="secondary"
+                                        className="whitespace-nowrap flex-1 md:flex-none bg-white border-slate-200"
+                                    >
+                                        <Copy className="w-4 h-4 mr-2" />
+                                        Sao chép
+                                    </Button>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Warning */}

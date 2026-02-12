@@ -21,6 +21,8 @@ import {
     Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import CountdownTimer from '@/components/ui/CountdownTimer';
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -30,15 +32,7 @@ export default function DashboardPage() {
         avatar: "NA",
         id: "user_123" // Mock ID
     });
-    const [showUserMenu, setShowUserMenu] = useState(false);
     const [isCheckingIn, setIsCheckingIn] = useState(false);
-
-    const handleLogout = () => {
-        localStorage.removeItem('xclub_user_name');
-        localStorage.removeItem('xclub_user_tier');
-        localStorage.removeItem('xclub_user_email');
-        router.push('/login');
-    };
 
     const handleCheckIn = async () => {
         setIsCheckingIn(true);
@@ -79,25 +73,86 @@ export default function DashboardPage() {
     ]);
 
     useEffect(() => {
-        // Hydrate from localStorage
-        const storedName = localStorage.getItem('xclub_user_name');
-        const storedTier = localStorage.getItem('xclub_user_tier');
+        const checkUserRole = async () => {
+            // Hydrate initial state from localStorage
+            const storedName = localStorage.getItem('xclub_user_name');
+            const storedTier = localStorage.getItem('xclub_user_tier');
+            const storedRole = localStorage.getItem('xclub_user_role');
+            const storedId = localStorage.getItem('xclub_user_id');
 
-        if (storedName) {
-            setUser(prev => ({
-                ...prev,
-                name: storedName,
-                role: storedTier || "Member",
-                avatar: getInitials(storedName)
-            }));
-        }
+            // 1. Initial hydration (optimistic)
+            if (storedName) {
+                setUser(prev => ({
+                    ...prev,
+                    name: storedName,
+                    role: storedTier || "Member",
+                    avatar: getInitials(storedName),
+                    id: storedId || "user_123"
+                }));
+            }
+
+            // 2. Fetch latest data from server to check for role updates (Hot Reload)
+            if (storedId) {
+                try {
+                    const res = await fetch('/api/auth/me', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: storedId })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        const realRole = data.user.role;
+
+                        // If role changed, update localStorage and redirect if needed
+                        if (realRole !== storedRole) {
+                            localStorage.setItem('xclub_user_role', realRole);
+                            // Also update name/tier if changed
+                            localStorage.setItem('xclub_user_name', data.user.fullName);
+                            localStorage.setItem('xclub_user_tier', data.user.membership?.tier || 'BRONZE');
+
+                            // Re-run redirection logic immediately
+                            if (realRole === 'SUPER_ADMIN') {
+                                router.push('/dashboard/admin/overview');
+                                return;
+                            }
+                            if (realRole === 'INSTRUCTOR') {
+                                router.push('/dashboard/mentor');
+                                return;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to re-validate role", error);
+                }
+            }
+
+            // 3. Client-side Route Guard (using potentially updated role)
+            // Re-read strictly from what we might have just updated or existing
+            const currentRole = localStorage.getItem('xclub_user_role');
+
+            if (currentRole === 'SUPER_ADMIN') {
+                router.push('/dashboard/admin/overview');
+                return;
+            }
+            if (currentRole === 'INSTRUCTOR') {
+                router.push('/dashboard/mentor');
+                return;
+            }
+            if (currentRole === 'AFFILIATE') {
+                router.push('/dashboard/affiliate');
+                return;
+            }
+        };
+
+        checkUserRole();
 
         // Load tasks state
         const storedTasks = localStorage.getItem('xclub_dashboard_tasks');
         if (storedTasks) {
             setTasks(JSON.parse(storedTasks));
         }
-    }, []);
+    }, [router]);
 
     const getInitials = (name: string) => {
         return name
@@ -117,70 +172,12 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="p-6 lg:p-8 space-y-8 bg-slate-50 min-h-screen font-sans text-slate-900" onClick={() => setShowUserMenu(false)}>
+        <div className="p-6 lg:p-8 space-y-8 bg-slate-50 min-h-screen font-sans text-slate-900">
             {/* 1. Header Section */}
-            <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative z-20">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-1">Dashboard</h1>
-                    <p className="text-slate-500 font-medium">Chào mừng trở lại, chúc bạn một ngày làm việc hiệu quả!</p>
-                </div>
-
-                <div
-                    className="relative"
-                    onClick={(e) => { e.stopPropagation(); setShowUserMenu(!showUserMenu); }}
-                >
-                    <div className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity p-2 rounded-xl hover:bg-slate-50">
-                        <div className="text-right hidden sm:block">
-                            <p className="font-bold text-slate-900">{user.name}</p>
-                            <p className="text-xs text-blue-600 font-bold uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-blue-100">{user.role}</p>
-                        </div>
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-blue-500/20 border-2 border-white ring-2 ring-blue-100">
-                            {user.avatar}
-                        </div>
-                    </div>
-
-                    {showUserMenu && (
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-100 py-2 animate-in fade-in zoom-in-95 duration-200 z-50">
-                            <div className="px-4 py-2 border-b border-slate-50 mb-1">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Switch Role (Admin Only)</p>
-                                <select
-                                    className="w-full text-xs font-bold p-1 rounded border border-slate-200 bg-slate-50"
-                                    value={localStorage.getItem('xclub_user_role') || 'STUDENT'}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                        const newRole = e.target.value;
-                                        localStorage.setItem('xclub_user_role', newRole);
-                                        window.dispatchEvent(new Event('roleChanged'));
-                                        window.location.reload(); // Reload to refresh permissions on all components
-                                    }}
-                                >
-                                    <option value="SUPER_ADMIN">System Admin</option>
-                                    <option value="INSTRUCTOR">Instructor</option>
-                                    <option value="CONTENT_EDITOR">Editor</option>
-                                    <option value="AFFILIATE">Affiliate</option>
-                                    <option value="GROUP_LEADER">Group Leader</option>
-                                    <option value="STUDENT">Student</option>
-                                </select>
-                            </div>
-
-                            <button
-                                onClick={(e) => { e.stopPropagation(); router.push('/dashboard/settings'); }}
-                                className="w-full flex items-center gap-2 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 font-bold transition-colors"
-                            >
-                                <Settings className="w-4 h-4" />
-                                Cài đặt
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-                                className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition-colors"
-                            >
-                                <LogOut className="w-4 h-4" />
-                                Đăng xuất
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <DashboardHeader
+                title="Dashboard"
+                description="Chào mừng trở lại, chúc bạn một ngày làm việc hiệu quả!"
+            />
 
             {/* 2. Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -222,8 +219,8 @@ export default function DashboardPage() {
                             </div>
 
                             <div className="text-center mb-8">
-                                <h3 className="text-4xl md:text-5xl font-black mb-2 tracking-tight">2 ngày 5 giờ 23 phút</h3>
-                                <p className="text-blue-200 font-medium">Thứ Năm, 15/02/2026 - 20:30 - 22:00</p>
+                                <CountdownTimer targetDate={new Date('2026-02-15T20:30:00')} />
+                                <p className="text-blue-200 font-medium">Chủ Nhật, 15/02/2026 • 20:30 - 22:00</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-white/20 pt-6">

@@ -17,6 +17,7 @@ export default function RegisterPage() {
         email: '',
         phone: '',
         tier: '',
+        role: '',
         password: '',
         confirmPassword: '',
         termsAccepted: false
@@ -42,6 +43,7 @@ export default function RegisterPage() {
         if (!formData.email) newErrors.email = "Vui lòng nhập email";
         if (!formData.phone) newErrors.phone = "Vui lòng nhập SĐT";
         if (!formData.tier) newErrors.tier = "Vui lòng chọn gói";
+        if (!formData.role) newErrors.role = "Vui lòng chọn vai trò";
         if (!formData.password) newErrors.password = "Vui lòng nhập mật khẩu";
         if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Mật khẩu không khớp";
         if (!formData.termsAccepted) newErrors.terms = "Bạn cần đồng ý điều khoản";
@@ -61,6 +63,7 @@ export default function RegisterPage() {
                     password: formData.password,
                     fullName: `${formData.lastName} ${formData.firstName}`,
                     tier: formData.tier,
+                    role: formData.role
                 }),
             });
 
@@ -159,6 +162,23 @@ export default function RegisterPage() {
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             error={errors.phone}
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Vai trò (Role)</label>
+                        <div className="relative">
+                            <select
+                                className="w-full h-11 px-4 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none transition-all cursor-pointer font-medium"
+                                value={formData.role}
+                                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                            >
+                                <option value="">-- Chọn vai trò --</option>
+                                <option value="STUDENT">Học viên (Student)</option>
+                                <option value="INSTRUCTOR">Giảng viên (Instructor)</option>
+                            </select>
+                            <ChevronDown className="absolute right-4 top-3.5 w-4 h-4 text-slate-500 pointer-events-none" />
+                        </div>
+                        {errors.role && <p className="mt-1 text-xs text-red-500 font-medium">{errors.role}</p>}
                     </div>
 
                     <div>

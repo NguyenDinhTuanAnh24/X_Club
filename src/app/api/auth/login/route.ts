@@ -40,10 +40,11 @@ export async function POST(request: NextRequest) {
 
         // Return user data (exclude password)
         const { passwordHash, subscription, ...userProps } = user;
-        
+
         return NextResponse.json({
             user: {
                 ...userProps,
+                role: user.role, // Explicitly return role
                 membership: subscription ? {
                     ...subscription,
                     tier: subscription.tier.name
