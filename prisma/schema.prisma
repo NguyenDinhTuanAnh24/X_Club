@@ -1,0 +1,290 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums ---
+
+enum UserRole {
+  // Tier 1: System Admin
+  SUPER_ADMIN
+  SUPPORT
+
+  // Tier 2: Content & Teaching
+  INSTRUCTOR
+  CONTENT_EDITOR // Can draft content, no revenue view
+
+  // Tier 3: Business & Distribution
+  AFFILIATE // Dashboard for referral links
+  GROUP_LEADER // B2B Manager
+
+  // Tier 4: End Users
+  STUDENT // Includes Free, Paid, Expired via Subscription
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  PENDING
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  TRIAL // Added for Free Member
+}
+
+enum GroupStatus {
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum GroupRole {
+  LEADER
+  MEMBER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  LATE
+  MISSING
+}
+
+// --- Models ---
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  fullName     String     @map("full_name")
+  role         UserRole   @default(STUDENT) // Default to STUDENT
+  avatarUrl    String?    @map("avatar_url")
+  status       UserStatus @default(ACTIVE)
+  referralCode String?    @unique @map("referral_code") // For Affiliates
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  subscription      Subscription?
+  groupMemberships  GroupMember[]
+  attendanceLogs    AttendanceLog[]
+  submissions       Submission[]
+  disciplineReports DisciplineReport[]
+  
+  // As Mentor/Instructor
+  mentorReviews     MentorReview[]
+
+  // Tasks
+  tasksCreated      Task[] @relation("TaskCreatedBy")
+  tasksAssigned     Task[] @relation("TaskAssignedTo")
+
+  // Schedules
+  schedulesCreated  Schedule[] @relation("ScheduleCreatedBy")
+
+  @@map("users")
+}
+
+model MembershipTier {
+  id           String   @id @default(uuid())
+  name         String   @unique // 'Free/Trial', 'Silver', 'Gold', 'Platinum'
+  price        Decimal  @db.Decimal(10, 2)
+  durationDays Int      @map("duration_days")
+  
+  subscriptions Subscription[]
+
+  @@map("membership_tiers")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @unique @map("user_id")
+  tierId    String             @map("tier_id")
+  startDate DateTime           @default(now()) @map("start_date")
+  endDate   DateTime           @map("end_date")
+  status    SubscriptionStatus @default(ACTIVE)
+
+  user User           @relation(fields: [userId], references: [id])
+  tier MembershipTier @relation(fields: [tierId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Group {
+  id                 String      @id @default(uuid())
+  name               String
+  status             GroupStatus @default(OPEN)
+  currentMemberCount Int         @default(0) @map("current_member_count")
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  members  GroupMember[]
+  meetings Meeting[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id          String    @id @default(uuid())
+  groupId     String    @map("group_id")
+  userId      String    @map("user_id")
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+  roleInGroup GroupRole @default(MEMBER) @map("role_in_group")
+
+  group Group @relation(fields: [groupId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+model Meeting {
+  id         String   @id @default(uuid())
+  groupId    String   @map("group_id")
+  title      String
+  startTime  DateTime @map("start_time")
+  endTime    DateTime @map("end_time")
+  weekNumber Int      @map("week_number")
+  meetLink   String?  @map("meet_link")
+
+  group          Group           @relation(fields: [groupId], references: [id])
+  attendanceLogs AttendanceLog[]
+  submissions    Submission[]
+
+  @@map("meetings")
+}
+
+model AttendanceLog {
+  id              String    @id @default(uuid())
+  meetingId       String    @map("meeting_id")
+  userId          String    @map("user_id")
+  checkInAt       DateTime? @map("check_in_at")
+  checkOutAt      DateTime? @map("check_out_at")
+  durationMinutes Int       @default(0) @map("duration_minutes")
+  status          AttendanceStatus @default(ABSENT)
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
+  @@map("attendance_logs")
+}
+
+model Submission {
+  id          String           @id @default(uuid())
+  meetingId   String           @map("meeting_id")
+  userId      String           @map("user_id")
+  contentUrl  String?          @map("content_url")
+  submittedAt DateTime?        @map("submitted_at")
+  status      SubmissionStatus @default(PENDING)
+
+  meeting       Meeting        @relation(fields: [meetingId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  mentorReviews MentorReview[]
+
+  @@map("submissions")
+}
+
+model MentorReview {
+  id           String   @id @default(uuid())
+  submissionId String   @map("submission_id")
+  mentorId     String   @map("mentor_id")
+  feedbackText String   @db.Text @map("feedback_text")
+  score        Int?
+  isAnonymous  Boolean  @default(true) @map("is_anonymous")
+  reviewedAt   DateTime @default(now()) @map("reviewed_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id])
+  mentor     User       @relation(fields: [mentorId], references: [id])
+
+  @@map("mentor_reviews")
+}
+
+model DisciplineReport {
+  id               String           @id @default(uuid())
+  userId           String           @map("user_id")
+  weekNumber       Int              @map("week_number")
+  attendanceStatus AttendanceStatus @map("attendance_status")
+  submissionStatus SubmissionStatus @map("submission_status")
+  penaltyScore     Int              @default(0) @map("penalty_score")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("discipline_reports")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?      @db.Text
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  dueDate     DateTime?    @map("due_date")
+  createdById String       @map("created_by_id")
+  assignedToId String?     @map("assigned_to_id")
+  groupId     String?      @map("group_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  createdBy  User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  assignedTo User?  @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+
+  @@map("tasks")
+}
+
+enum ScheduleType {
+  ONLINE_MEETING
+  OFFLINE_EVENT
+  WORKSHOP
+  OTHER
+}
+
+model Schedule {
+  id          String       @id @default(uuid())
+  title       String
+  description String?      @db.Text
+  type        ScheduleType @default(ONLINE_MEETING)
+  startTime   DateTime     @map("start_time")
+  endTime     DateTime     @map("end_time")
+  location    String?      // For online: meet link, For offline: address
+  createdById String       @map("created_by_id")
+  groupId     String?      @map("group_id")
+  isRecurring Boolean      @default(false) @map("is_recurring")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  createdBy  User   @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+
+  @@map("schedules")
+}
+

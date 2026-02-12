@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    /* Slate-50 */
+    --foreground: #0f172a;
+    /* Slate-900 */
+
+    /* Semantic Colors based on User Request */
+    --primary: #0f172a;
+    /* Slate-900 (Dark Navy/Black equivalent) */
+    --primary-foreground: #ffffff;
+
+    --secondary: #f1f5f9;
+    /* Slate-100 (Secondary BG) */
+    --secondary-foreground: #0f172a;
+
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    /* Slate-500 */
+
+    --accent: #f1f5f9;
+    --accent-foreground: #0f172a;
+
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+
+    --border: #e2e8f0;
+    /* Slate-200 */
+    --input: #e2e8f0;
+
+    --ring: #94a3b8;
+    /* Slate-400 */
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  /* Reset form elements for better cross-browser consistency */
+  input,
+  textarea,
+  select,
+  button {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+
+  /* Minimalist Card */
+  .card-minimal {
+    @apply bg-white border border-slate-200 rounded-xl shadow-none hover:shadow-sm transition-shadow duration-200;
+  }
+
+  /* Minimalist Input */
+  .input-minimal {
+    @apply h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}
+
+@layer utilities {
+
+  /* Shimmer animation for premium effects */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 3s infinite linear;
+    background-size: 1000px 100%;
+  }
+}
